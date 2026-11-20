@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { createRequire } from 'node:module';
 
 // Database adapter: no HTTP concerns. All SQL belongs to repository modules.
 export type SqlValue = string | number | bigint | null;
@@ -16,7 +15,9 @@ export interface SqliteConnection {
   pragma(sql: string, options?: { simple: boolean }): unknown;
   close(): void;
 }
-const Sqlite = createRequire(join(process.cwd(), 'package.json'))('better-sqlite3') as new (file: string) => SqliteConnection;
+// Next.js keeps better-sqlite3 external in the Node.js server bundle.
+// Use native require instead of createRequire, which webpack may rewrite incorrectly.
+const Sqlite = require('better-sqlite3') as new (file: string) => SqliteConnection;
 let connection: SqliteConnection | undefined;
 
 export function getConnection(): SqliteConnection {
