@@ -7,9 +7,11 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "test": "vitest run",
+    "test": "vitest run && node --test demo/check.mjs",
     "test:e2e": "playwright test",
-    "verify:restart": "node scripts/verify-next-restart.mjs"
+    "verify:restart": "node scripts/verify-next-restart.mjs",
+    "demo": "node scripts/demo.mjs",
+    "test:demo": "node --test demo/check.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

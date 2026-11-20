@@ -1,0 +1,7 @@
+corpus,task_id,task_prompt,expected_book,expected_source,expected_location,kind,observed_time_seconds,correct_source,notes
+corpus-a,A01,Find the passage about the morning window,The Lantern Library,"Fictional edition, 2026","chapter 2, p. 12",first-time,,,
+corpus-a,A02,Find the sentence about the stopped clock,The Lantern Library,"Fictional edition, 2026","chapter 4, p. 31",first-time,,,
+corpus-a,A03,Find a passage containing the word 地図,The Waves Remember,"Pocket edition, 2025","section 5, p. 48",repeat-candidate,,,
+corpus-a,A04,Find the tide sentence,The Waves Remember,"Pocket edition, 2025","section 1, p. 5",first-time,,,
+corpus-b,B01,Find the passage about counting stars,Night Observatory,"Illustrated edition, 2023","chapter 1, line 24",first-time,,,
+corpus-b,B02,Find the visitor telescope sentence,Night Observatory,"Illustrated edition, 2023","chapter 3, line 9",repeat-candidate,,,
