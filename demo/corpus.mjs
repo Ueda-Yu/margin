@@ -52,10 +52,12 @@ export function parseNoteFile(markdown, filename) {
     // Every level-two heading closes the previous excerpt, including unsupported
     // sections such as "## Commentary". Only supported headings open a new one.
     // Otherwise commentary Source: lines and quotes could silently alter citations.
-    const heading = /^ {0,3}##[ \t]+(.+?)\s*$/.exec(line);
+    // A bare `##` (optionally followed by spaces) is also a valid h2 boundary.
+    // The separator must be whitespace or EOL, so `###` stays a different level.
+    const heading = /^ {0,3}##(?:[ \t]+(.*)|$)/.exec(line);
     if (heading) {
       finish();
-      if (/^(?:Excerpt|Passage)(?:\s*[:\-–]\s*.*)?$/i.test(heading[1])) {
+      if (/^(?:Excerpt|Passage)(?:\s*[:\-–]\s*.*)?$/i.test((heading[1] ?? '').trim())) {
         count++;
         active = { line: i + 1, ordinal: count, source: '', location: '', quote: [] };
       }

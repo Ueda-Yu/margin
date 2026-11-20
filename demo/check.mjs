@@ -231,3 +231,46 @@ test('fixed seeds create isolated and non-overwritable histories for each scored
     await rm(temp, { recursive: true, force: true });
   }
 });
+
+
+test('bare level-two headings are section boundaries and preserve the prior citation ID', () => {
+  const original = [
+    '# A Fictional Book',
+    '## Excerpt: Original',
+    'Source: Verified edition',
+    'Location: page 7',
+    '> Original quoted line',
+  ].join('\n');
+  const baseline = parseNoteFile(original, 'same.md');
+  assert.equal(baseline.excerpts.length, 1);
+  for (const boundary of ['##', '##   ', '  ##\t']) {
+    const parsed = parseNoteFile([
+      original,
+      boundary,
+      'Source: Tampered citation',
+      'Location: page 999',
+      '> This is unrelated commentary, not a quotation.',
+      '## Passage: Next',
+      'Source: Second edition',
+      'Location: page 8',
+      '> The next actual quotation.',
+    ].join('\n'), 'same.md');
+    assert.equal(parsed.excerpts.length, 2, 'expected exactly two excerpts for ' + JSON.stringify(boundary));
+    assert.deepEqual(parsed.excerpts[0], baseline.excerpts[0],
+      'bare h2 must preserve first excerpt ID, source, location and text');
+    assert.equal(parsed.excerpts[1].text, 'The next actual quotation.');
+    assert(!parsed.excerpts.some((item) => item.text.includes('unrelated commentary')));
+  }
+
+  const incomplete = parseNoteFile([
+    '# A Fictional Book',
+    '## Excerpt',
+    '> Text without its own source or location',
+    '##',
+    'Source: Fake later source',
+    'Location: page 999',
+    '> Must not be treated as part of the excerpt',
+  ].join('\n'), 'same.md');
+  assert.equal(incomplete.excerpts.length, 0);
+  assert.match(incomplete.diagnostics[0].reason, /missing Source, Location/);
+});
