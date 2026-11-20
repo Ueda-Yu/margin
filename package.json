@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "verify:restart": "node scripts/verify-next-restart.mjs",
     "demo": "node scripts/demo.mjs",
-    "test:demo": "node --test demo/check.mjs"
+    "test:demo": "node --test demo/check.mjs",
+    "demo:prepare": "node scripts/prepare-demo-run.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

@@ -49,10 +49,16 @@ export function parseNoteFile(markdown, filename) {
       if (!book) book = h1[1].trim();
       continue;
     }
-    if (/^##\s+(?:Excerpt|Passage)(?:\s*[:\-–]\s*.*)?\s*$/i.test(line)) {
+    // Every level-two heading closes the previous excerpt, including unsupported
+    // sections such as "## Commentary". Only supported headings open a new one.
+    // Otherwise commentary Source: lines and quotes could silently alter citations.
+    const heading = /^ {0,3}##[ \t]+(.+?)\s*$/.exec(line);
+    if (heading) {
       finish();
-      count++;
-      active = { line: i + 1, ordinal: count, source: '', location: '', quote: [] };
+      if (/^(?:Excerpt|Passage)(?:\s*[:\-–]\s*.*)?$/i.test(heading[1])) {
+        count++;
+        active = { line: i + 1, ordinal: count, source: '', location: '', quote: [] };
+      }
       continue;
     }
     if (!active) continue;

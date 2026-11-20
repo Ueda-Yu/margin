@@ -18,6 +18,32 @@ npm run demo -- demo/fixtures/corpus-b
 
 The app is bound only to loopback. Each run scans its Markdown corpus at startup, not continuously; restart after editing files. No public service, hosted account, SQLite schema migration, or network sync is involved.
 
+## Reset a frozen copy-history baseline before scoring
+
+**Required for any independent timed trial:** prepare a *new* data directory from a fixed seed manifest **before each scored task in each arm**. This matters even in B: turning suggestions off does not stop legitimate `citation_copied` events from being recorded. Reusing one `MARGIN_DEMO_DATA_DIR` across B and C would let the B trial alter the C baseline and invalidate the comparison.
+
+The seed manifests are **synthetic prior-copy events**, not real usage history. Each entry names a `file`, `location`, and fixed UTC `timestamp`; the preparation command resolves the excerpt's current ID from the corpus. It fails instead of guessing if a location is missing or ambiguous. The tool prints an SHA-256 checksum of the resolved events. Record this checksum with each local test run and require it to match between B and C on the same task/corpus.
+
+For example, using **Windows PowerShell** from the repository root:
+
+```powershell
+npm.cmd run demo:prepare -- demo/fixtures/corpus-a demo/fixtures/seed-a.json .demo-runs/A03-B
+$env:MARGIN_DEMO_DATA_DIR = (Resolve-Path '.demo-runs/A03-B').Path
+npm.cmd run demo -- demo/fixtures/corpus-a
+# In the browser: history OFF for condition B. Stop the server after the task.
+
+npm.cmd run demo:prepare -- demo/fixtures/corpus-a demo/fixtures/seed-a.json .demo-runs/A03-C
+$env:MARGIN_DEMO_DATA_DIR = (Resolve-Path '.demo-runs/A03-C').Path
+npm.cmd run demo -- demo/fixtures/corpus-a
+# In the browser: history ON for condition C. Stop the server after the task.
+```
+
+On bash/zsh, use `npm run demo:prepare -- <notes-dir> <seed.json> <fresh-run-dir>` and then `MARGIN_DEMO_DATA_DIR="$(pwd)/<fresh-run-dir>" npm run demo -- <notes-dir>`.
+
+Use a fresh, uniquely named directory for *every* independent scored run, including a repeat of the same task. Preparation refuses to overwrite an existing run directory and never touches the normal app history. Do not delete or reinitialize previous run directories until their results have been reviewed; the ignored `.demo-runs/` directory contains experimental logs and must not be committed. Corpus B has its own `demo/fixtures/seed-b.json` and can use the identical command with `corpus-b`.
+
+To compare B and C, keep the corpus version, task instructions, fixed seed, and source-correctness key identical; assign independent comparable tasks in counterbalanced order. A first-time query should normally have no relevant prior-copy event, so record the distraction or absence of a history suggestion instead of treating it as a repeat. Seed events serve only to test mechanics: they must never be counted as observed writing use or natural reuse opportunities.
+
 ## Supported Markdown (strict by design)
 
 Each `.md` file has a `# Book title`, then one or more `## Excerpt` or `## Passage` sections. Every section needs a `Source:` label, a `Location:` (or `Page:`) label and one or more `> quoted lines`:

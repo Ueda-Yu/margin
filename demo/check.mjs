@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadCorpus, parseNoteFile, searchExcerpts, suggestCopied, formatCitation } from './corpus.mjs';
 import { historyFile, readHistory, recordCitationCopy } from './history.mjs';
 import { startDemo } from './server.mjs';
+import { prepareDemoRun } from './seed-run.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const corpusA = join(here, 'fixtures', 'corpus-a');
@@ -126,6 +127,107 @@ test('one-screen HTTP demo: search, valid copy event, restart, history toggle, c
     assert.equal(afterRestart.suggestions[0].id, chosen.id);
   } finally {
     if (demo?.server.listening) await demo.stop();
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+
+test('unsupported level-two commentary never changes original citation or excerpt text', () => {
+  const original = [
+    '# A Fictional Book',
+    '## Excerpt: Original',
+    'Source: Verified edition',
+    'Location: page 7',
+    '> Original quoted line',
+  ].join('\n');
+  const baseline = parseNoteFile(original, 'same.md');
+  const attacked = parseNoteFile([
+    original,
+    '## Commentary',
+    'Source: Misleading replacement',
+    'Location: page 999',
+    '> This is commentary, not a quote.',
+    '## Passage: Next real excerpt',
+    'Source: Second edition',
+    'Location: page 8',
+    '> Next valid quote.',
+  ].join('\n'), 'same.md');
+  assert.deepEqual(attacked.excerpts[0], baseline.excerpts[0],
+    'the ID, body, source, and location of the first citation must not change');
+  assert.equal(attacked.excerpts.length, 2);
+  assert.equal(attacked.excerpts[0].source, 'Verified edition');
+  assert.equal(attacked.excerpts[0].text, 'Original quoted line');
+  assert.equal(attacked.excerpts[1].text, 'Next valid quote.');
+
+  const incomplete = parseNoteFile([
+    '# A Fictional Book',
+    '## Excerpt',
+    '> Missing its own citation',
+    '## Commentary',
+    'Source: Misleading replacement',
+    'Location: page 999',
+    '> Not a valid excerpt.',
+  ].join('\n'), 'same.md');
+  assert.equal(incomplete.excerpts.length, 0);
+  assert.match(incomplete.diagnostics[0].reason, /missing Source, Location/);
+});
+
+test('A03 uniquely identifies the star-mark passage rather than any 地図 match', async () => {
+  const corpus = (await loadCorpus(corpusA)).excerpts;
+  assert.equal(searchExcerpts(corpus, '地図').length, 2,
+    'the previous task prompt was ambiguous');
+  const candidate = searchExcerpts(corpus, '星印');
+  assert.equal(candidate.length, 1);
+  assert.equal(candidate[0].book, 'The Waves Remember');
+  assert.equal(candidate[0].source, 'Pocket edition, 2025');
+  assert.equal(candidate[0].location, 'section 5, p. 48');
+  const tasks = await readFile(join(here, 'fixtures', 'tasks.csv'), 'utf8');
+  assert.match(tasks, /corpus-a,A03,Find the passage describing a small star mark in the map's margin,The Waves Remember/);
+});
+
+test('fixed seeds create isolated and non-overwritable histories for each scored run', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'margin-scoring-seeds-'));
+  const seedA = join(here, 'fixtures', 'seed-a.json');
+  const seedB = join(here, 'fixtures', 'seed-b.json');
+  try {
+    const bArm = await prepareDemoRun(corpusA, seedA, join(temp, 'A03-B'));
+    const cArm = await prepareDemoRun(corpusA, seedA, join(temp, 'A03-C'));
+    assert.equal(bArm.events, 1);
+    assert.equal(bArm.checksum, cArm.checksum);
+    assert.deepEqual(await readHistory(bArm.historyPath), await readHistory(cArm.historyPath));
+    const prior = await readHistory(bArm.historyPath);
+    const matched = (await loadCorpus(corpusA)).excerpts.find(
+      (entry) => entry.file === 'waves.md' && entry.location === 'section 5, p. 48');
+    assert.equal(prior[0].excerpt_id, matched.id);
+
+    const newEntry = (await loadCorpus(corpusA)).excerpts.find((entry) =>
+      entry.location === 'chapter 4, p. 31');
+    await recordCitationCopy(bArm.historyPath, newEntry.id);
+    assert.equal((await readHistory(bArm.historyPath)).length, 2);
+    assert.deepEqual(await readHistory(cArm.historyPath), prior,
+      'a B-arm copy must not leak into a fresh C-arm baseline');
+    const seededDemo = await startDemo({ notesDir: corpusA, dataDirectory: cArm.directory });
+    try {
+      const base = seededDemo.url + '/api/excerpts?q=' + encodeURIComponent('星印');
+      const bMode = await (await fetch(base + '&history=0')).json();
+      const cMode = await (await fetch(base + '&history=1')).json();
+      assert.deepEqual(bMode.results, cMode.results);
+      assert.equal(bMode.suggestions.length, 0);
+      assert.equal(cMode.suggestions.length, 1);
+      assert.equal(cMode.suggestions[0].id, matched.id);
+    } finally {
+      await seededDemo.stop();
+    }
+    await assert.rejects(prepareDemoRun(corpusA, seedA, join(temp, 'A03-B')), /EEXIST/);
+    assert.equal((await readHistory(bArm.historyPath)).length, 2,
+      'a failed re-preparation must not erase previous trial data');
+    await assert.rejects(prepareDemoRun(corpusB, seedA, join(temp, 'wrong-seed')), /exactly one/);
+
+    const otherCorpus = await prepareDemoRun(corpusB, seedB, join(temp, 'B02-C'));
+    assert.equal(otherCorpus.events, 1);
+    assert.equal((await readHistory(otherCorpus.historyPath))[0].excerpt_id,
+      (await loadCorpus(corpusB)).excerpts.find((entry) => entry.location === 'chapter 3, line 9').id);
+  } finally {
     await rm(temp, { recursive: true, force: true });
   }
 });
